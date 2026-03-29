@@ -6,6 +6,7 @@ import com.investai.fullstackproject_ai_chatbot.ai.domain.AiChatResponse;
 import com.investai.fullstackproject_ai_chatbot.ai.domain.ChatMessageView;
 import com.investai.fullstackproject_ai_chatbot.ai.domain.ChatSessionDetail;
 import com.investai.fullstackproject_ai_chatbot.ai.domain.StoredChatbotProfile;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.stereotype.Service;
@@ -45,9 +46,9 @@ public class MultiAgentAiChatService implements AiChatService {
         chatMemoryStore.appendMessage(request.userId(), sessionId, "USER", request.userId(), request.message());
 
         List<AgentInsight> agentInsights = buildInsights(request, chatbotProfile);
-        String reply = buildReply(request, chatbotProfile, existingMessages);
+        String reply = buildReply(request, chatbotProfile, existingMessages, agentInsights);
         String memorySummary = buildMemorySummary(request, existingMessages);
-        List<String> suggestedActions = buildSuggestedActions(chatbotProfile);
+        List<String> suggestedActions = buildSuggestedActions(chatbotProfile, agentInsights);
 
         chatMemoryStore.appendMessage(request.userId(), sessionId, "ASSISTANT", chatbotProfile.displayName(), reply);
         ChatSessionDetail updatedSession = chatWorkspaceService.getSession(request.userId(), sessionId);
@@ -67,18 +68,26 @@ public class MultiAgentAiChatService implements AiChatService {
     private List<AgentInsight> buildInsights(AiChatRequest request, StoredChatbotProfile chatbotProfile) {
         if ("education".equalsIgnoreCase(chatbotProfile.domainName())) {
             return List.of(
-                    new AgentInsight("Tutor Agent", "Break the topic into smaller concepts and define the core terms first.", "high"),
-                    new AgentInsight("Study Planner", "Convert the question into a short lesson plus a next practice step.", "medium"),
-                    new AgentInsight("Quiz Agent", "Offer one quick recall question to reinforce the explanation.", "medium")
+                    new AgentInsight("Tutor Agent", "Break the topic into smaller concepts and define the core terms first.", "high",
+                            "Start with the simplest definition, then add one worked example.", 93),
+                    new AgentInsight("Study Planner", "Convert the question into a short lesson plus a next practice step.", "medium",
+                            "End the explanation with one mini-practice task.", 82),
+                    new AgentInsight("Quiz Agent", "Offer one quick recall question to reinforce the explanation.", "medium",
+                            "Check understanding before moving to a harder example.", 75)
             );
         }
 
         return agents.stream()
                 .map(agent -> agent.analyze(request))
+                .sorted(Comparator.comparingInt(AgentInsight::priority).reversed())
                 .toList();
     }
 
-    private String buildReply(AiChatRequest request, StoredChatbotProfile chatbotProfile, List<ChatMessageView> existingMessages) {
+    private String buildReply(
+            AiChatRequest request,
+            StoredChatbotProfile chatbotProfile,
+            List<ChatMessageView> existingMessages,
+            List<AgentInsight> agentInsights) {
         if ("education".equalsIgnoreCase(chatbotProfile.domainName())) {
             String priorTopic = latestUserTopic(existingMessages);
             return "Here is a clear study-focused answer for \"" + request.message() + "\"."
@@ -86,16 +95,22 @@ public class MultiAgentAiChatService implements AiChatService {
                     + " I would explain the concept in simple steps, give a short example, and end with one revision question.";
         }
 
-        return "I am coordinating planner, hotel, price, and local guide agents for the "
-                + request.stage()
-                + " stage"
+        String intent = detectIntent(request.message());
+        AgentInsight primarySignal = agentInsights.getFirst();
+        AgentInsight secondarySignal = agentInsights.size() > 1 ? agentInsights.get(1) : primarySignal;
+
+        return "For the " + request.stage() + " stage"
                 + (request.destination() != null ? " in " + request.destination() : "")
-                + ". Based on your message"
-                + (request.selectedHotel() != null && !request.selectedHotel().isBlank() ? " and the selected stay " + request.selectedHotel() : "")
-                + ", the next step is to reduce booking friction with policy clarity, ranked options, and a practical next action.";
+                + ", the strongest signal is from " + primarySignal.agentName()
+                + ": " + primarySignal.summary()
+                + " The supporting signal comes from " + secondarySignal.agentName()
+                + ", which suggests " + secondarySignal.recommendedAction().toLowerCase(Locale.ROOT)
+                + ". Because your question looks like a " + intent + " decision"
+                + (request.selectedHotel() != null && !request.selectedHotel().isBlank() ? " around " + request.selectedHotel() : "")
+                + ", I would keep the next step practical: rank the best option, preserve flexibility, and remove the biggest booking risk first.";
     }
 
-    private List<String> buildSuggestedActions(StoredChatbotProfile chatbotProfile) {
+    private List<String> buildSuggestedActions(StoredChatbotProfile chatbotProfile, List<AgentInsight> agentInsights) {
         if ("education".equalsIgnoreCase(chatbotProfile.domainName())) {
             return List.of(
                     "Generate a short study plan",
@@ -104,11 +119,11 @@ public class MultiAgentAiChatService implements AiChatService {
             );
         }
 
-        return List.of(
-                "Open Agoda-style hotel cards with smart filters",
-                "Generate a day-wise itinerary",
-                "Review price prediction before checkout"
-        );
+        return agentInsights.stream()
+                .sorted(Comparator.comparingInt(AgentInsight::priority).reversed())
+                .limit(3)
+                .map(AgentInsight::recommendedAction)
+                .toList();
     }
 
     private String buildMemorySummary(AiChatRequest request, List<ChatMessageView> existingMessages) {
@@ -131,5 +146,22 @@ public class MultiAgentAiChatService implements AiChatService {
                     return normalized.substring(0, 33).toLowerCase(Locale.ROOT) + "...";
                 })
                 .orElse(null);
+    }
+
+    private String detectIntent(String message) {
+        String normalized = message == null ? "" : message.toLowerCase(Locale.ROOT);
+        if (normalized.contains("price") || normalized.contains("budget") || normalized.contains("cheap")) {
+            return "price-sensitive";
+        }
+        if (normalized.contains("cancel") || normalized.contains("refundable") || normalized.contains("policy")) {
+            return "risk-reduction";
+        }
+        if (normalized.contains("plan") || normalized.contains("itinerary") || normalized.contains("day")) {
+            return "planning";
+        }
+        if (normalized.contains("book") || normalized.contains("hotel") || normalized.contains("stay")) {
+            return "booking";
+        }
+        return "general";
     }
 }

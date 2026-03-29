@@ -13,7 +13,9 @@ public class PriceAgent implements TravelAgent {
         return new AgentInsight(
                 "Price Agent",
                 "Detected a " + budgetLevel + " budget profile and recommends booking refundable inventory before peak pricing.",
-                "medium"
+                "medium",
+                "Set a price threshold and compare one cheaper backup before checkout.",
+                81
         );
     }
 }

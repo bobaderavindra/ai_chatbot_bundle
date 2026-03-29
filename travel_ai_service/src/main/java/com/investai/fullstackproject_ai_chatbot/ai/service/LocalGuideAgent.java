@@ -13,7 +13,9 @@ public class LocalGuideAgent implements TravelAgent {
         return new AgentInsight(
                 "Local Guide Agent",
                 "Suggested nearby food, attractions, and low-friction transport options around " + destination + ".",
-                "medium"
+                "medium",
+                "Cluster activities by neighborhood so the plan stays realistic on the ground.",
+                73
         );
     }
 }

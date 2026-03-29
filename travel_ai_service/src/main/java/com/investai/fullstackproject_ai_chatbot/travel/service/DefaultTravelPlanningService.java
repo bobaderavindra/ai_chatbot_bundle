@@ -67,15 +67,26 @@ public class DefaultTravelPlanningService implements TravelPlanningService {
         List<String> interests = request.interests() == null || request.interests().isEmpty()
                 ? List.of("culture", "food", "relaxation")
                 : request.interests();
+        BigDecimal totalEstimatedBudget = BigDecimal.ZERO;
 
         for (int day = 1; day <= request.days(); day++) {
             String interest = interests.get((day - 1) % interests.size());
+            BigDecimal dailySpend = estimateDailySpend(request.budgetLevel(), request.travelerProfile(), day);
+            totalEstimatedBudget = totalEstimatedBudget.add(dailySpend);
             days.add(new ItineraryDay(
                     day,
                     capitalize(interest) + " focus",
+                    suggestZone(request.destination(), interest),
+                    dailySpend,
+                    transitTipFor(interest, request.travelerProfile()),
                     List.of("Breakfast near hotel", "Guided " + interest + " experience"),
                     List.of("Flexible lunch break", "Core attraction visit"),
-                    List.of("Sunset stop", "Dinner in a highly rated local area")
+                    List.of("Sunset stop", "Dinner in a highly rated local area"),
+                    List.of(
+                            "Best photo window around late afternoon",
+                            "Keep one reservation flexible in case weather changes",
+                            "Book transport before the evening rush"
+                    )
             ));
         }
 
@@ -83,6 +94,9 @@ public class DefaultTravelPlanningService implements TravelPlanningService {
                 request.destination(),
                 "Multi-day plan optimized for " + request.travelerProfile() + " travellers on a "
                         + request.budgetLevel() + " budget.",
+                bestAreaToStay(request.travelerProfile(), interests),
+                pacingSummary(request.days(), request.travelerProfile()),
+                totalEstimatedBudget,
                 days,
                 List.of(
                         "Keep the first and last day lighter to absorb transport delays.",
@@ -184,5 +198,68 @@ public class DefaultTravelPlanningService implements TravelPlanningService {
             return "Flexible";
         }
         return value.substring(0, 1).toUpperCase(Locale.ROOT) + value.substring(1);
+    }
+
+    private BigDecimal estimateDailySpend(String budgetLevel, String travelerProfile, int dayNumber) {
+        BigDecimal base = switch ((budgetLevel == null ? "" : budgetLevel.toLowerCase(Locale.ROOT))) {
+            case "budget" -> BigDecimal.valueOf(85);
+            case "mid-range", "midrange" -> BigDecimal.valueOf(145);
+            case "luxury" -> BigDecimal.valueOf(260);
+            default -> BigDecimal.valueOf(130);
+        };
+
+        if ("family".equalsIgnoreCase(travelerProfile)) {
+            base = base.add(BigDecimal.valueOf(30));
+        }
+
+        if (dayNumber == 1 || dayNumber % 3 == 0) {
+            base = base.add(BigDecimal.valueOf(18));
+        }
+
+        return base;
+    }
+
+    private String suggestZone(String destination, String interest) {
+        String lowerInterest = interest == null ? "" : interest.toLowerCase(Locale.ROOT);
+        if (lowerInterest.contains("beach")) {
+            return destination + " coast";
+        }
+        if (lowerInterest.contains("culture")) {
+            return destination + " heritage quarter";
+        }
+        if (lowerInterest.contains("food")) {
+            return destination + " market district";
+        }
+        return destination + " central area";
+    }
+
+    private String transitTipFor(String interest, String travelerProfile) {
+        if ("family".equalsIgnoreCase(travelerProfile)) {
+            return "Use private transfer windows between major stops to reduce walking fatigue.";
+        }
+        if (interest != null && interest.toLowerCase(Locale.ROOT).contains("culture")) {
+            return "Start with rideshare, then switch to walking for dense cultural areas.";
+        }
+        return "Cluster nearby stops and move by rideshare after lunch when heat and traffic increase.";
+    }
+
+    private String bestAreaToStay(String travelerProfile, List<String> interests) {
+        if ("family".equalsIgnoreCase(travelerProfile)) {
+            return "Stay in a family-friendly resort corridor with breakfast, pool access, and easy transfers.";
+        }
+        if (interests.stream().anyMatch(interest -> interest.toLowerCase(Locale.ROOT).contains("culture"))) {
+            return "Stay near the old town or heritage quarter for shorter travel time between key sights.";
+        }
+        return "Stay in the central district to keep transport simple across activities.";
+    }
+
+    private String pacingSummary(int days, String travelerProfile) {
+        if (days <= 3) {
+            return "Fast-paced trip: focus on anchor experiences and avoid overbooking transfers.";
+        }
+        if ("family".equalsIgnoreCase(travelerProfile)) {
+            return "Balanced family pacing with one major activity block and one recovery window each day.";
+        }
+        return "Moderate pacing with room for spontaneous stops and one premium activity each day.";
     }
 }

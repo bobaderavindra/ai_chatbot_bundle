@@ -495,6 +495,57 @@ select {
   gap: 18px;
 }
 
+.deep-insight-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.intelligence-card {
+  display: grid;
+  gap: 14px;
+}
+
+.metric-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 18px;
+  padding: 12px 14px;
+  background: #f8f4ef;
+}
+
+.itinerary-day-stack,
+.compact-list {
+  display: grid;
+  gap: 10px;
+}
+
+.itinerary-day-card {
+  border: 1px solid rgba(34, 34, 34, 0.08);
+  border-radius: 18px;
+  padding: 14px;
+  background: white;
+}
+
+.itinerary-day-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.itinerary-day-card p,
+.itinerary-day-card small {
+  margin: 0;
+}
+
+.compact-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
 .listing-card {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
@@ -984,6 +1035,7 @@ select {
   .top-shell,
   .results-shell,
   .results-head,
+  .deep-insight-grid,
   .search-pill-bar {
     grid-template-columns: 1fr;
   }

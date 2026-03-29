@@ -15,7 +15,9 @@ public class HotelAgent implements TravelAgent {
         return new AgentInsight(
                 "Hotel Agent",
                 "Evaluated amenities, family fit, and cancellation flexibility for " + hotelFocus + ".",
-                "high"
+                "high",
+                "Favor properties with breakfast and flexible cancellation until flights are finalized.",
+                88
         );
     }
 }

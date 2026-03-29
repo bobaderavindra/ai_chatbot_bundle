@@ -13,7 +13,9 @@ public class PlannerAgent implements TravelAgent {
         return new AgentInsight(
                 "Planner Agent",
                 "Prepared a day-wise plan for " + destination + " based on the " + request.stage() + " stage.",
-                "high"
+                "high",
+                "Turn the top two ideas into a day-by-day route before booking inventory.",
+                92
         );
     }
 }

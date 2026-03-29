@@ -113,6 +113,8 @@ export function HotelSearchPage({
   const latestAssistantMessage = [...(activeSession?.messages ?? [])].reverse()
     .find((message) => message.senderRole === "ASSISTANT");
   const chatSuggestions = chatResponse?.suggestedActions ?? [];
+  const topPriceDrivers = pricePrediction?.drivers?.slice(0, 3) ?? [];
+  const itineraryDays = itinerary?.days ?? [];
 
   function submitSearch(event) {
     event.preventDefault();
@@ -263,7 +265,7 @@ export function HotelSearchPage({
             <div className="signal-box">
               <span>Price signal</span>
               <strong>{pricePrediction ? pricePrediction.trend : "steady"}</strong>
-              <p>{pricePrediction ? pricePrediction.bestBookingWindow : "Compare refundable options before checkout."}</p>
+              <p>{pricePrediction ? pricePrediction.recommendedAction : "Compare refundable options before checkout."}</p>
             </div>
           </div>
 
@@ -349,6 +351,49 @@ export function HotelSearchPage({
               );
             })}
           </div>
+
+          <section className="deep-insight-grid">
+            <article className="info-card intelligence-card">
+              <p className="card-label">AI Itinerary Generator</p>
+              <h3>{itinerary ? itinerary.bestAreaToStay : "Plan the trip flow"}</h3>
+              <p>{itinerary ? itinerary.pacingSummary : "Generate a balanced route with neighborhood-aware pacing."}</p>
+              {itinerary ? (
+                <div className="metric-strip">
+                  <span>Est. budget</span>
+                  <strong>${itinerary.totalEstimatedBudget}</strong>
+                </div>
+              ) : null}
+              <div className="itinerary-day-stack">
+                {itineraryDays.slice(0, 3).map((day) => (
+                  <div key={day.dayNumber} className="itinerary-day-card">
+                    <div className="itinerary-day-head">
+                      <strong>Day {day.dayNumber}</strong>
+                      <span>{day.zone}</span>
+                    </div>
+                    <p>{day.theme}</p>
+                    <small>Spend ${day.estimatedSpend} | {day.transitTip}</small>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <article className="info-card intelligence-card">
+              <p className="card-label">Price Prediction</p>
+              <h3>{pricePrediction ? `$${pricePrediction.predictedPrice}` : "Waiting for price signal"}</h3>
+              <p>{pricePrediction ? pricePrediction.savingsOpportunity : "Use the ML-informed risk signal before checkout."}</p>
+              {pricePrediction ? (
+                <div className="metric-strip">
+                  <span>Risk</span>
+                  <strong>{pricePrediction.riskLevel} | score {pricePrediction.priceScore}</strong>
+                </div>
+              ) : null}
+              <ul className="compact-list">
+                {topPriceDrivers.map((driver) => (
+                  <li key={driver}>{driver}</li>
+                ))}
+              </ul>
+            </article>
+          </section>
         </section>
 
         <aside className="map-column">
@@ -449,7 +494,9 @@ export function HotelSearchPage({
             {chatResponse ? (
               <ul>
                 {chatResponse.agentInsights.map((insight) => (
-                  <li key={insight.agentName}>{insight.agentName}: {insight.summary}</li>
+                  <li key={insight.agentName}>
+                    {insight.agentName}: {insight.summary} Next: {insight.recommendedAction}
+                  </li>
                 ))}
               </ul>
             ) : null}
@@ -467,7 +514,7 @@ export function HotelSearchPage({
               <p>{bookingQuote ? bookingQuote.policyHighlights[0] : "Select a stay to compare quote details."}</p>
             </section>
             <section className="info-card">
-              <p className="card-label">Dashboard</p>
+              <p className="card-label">Travel dashboard</p>
               <h3>{dashboard ? dashboard.welcomeMessage : "Traveler dashboard"}</h3>
             </section>
             <section className="info-card">

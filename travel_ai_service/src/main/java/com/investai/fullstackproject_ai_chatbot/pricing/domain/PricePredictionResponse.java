@@ -8,5 +8,10 @@ public record PricePredictionResponse(
         String trend,
         String confidence,
         String bestBookingWindow,
+        BigDecimal expectedChangeAmount,
+        int priceScore,
+        String recommendedAction,
+        String riskLevel,
+        String savingsOpportunity,
         List<String> drivers) {
 }
