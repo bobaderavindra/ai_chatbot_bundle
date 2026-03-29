@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: travelwithai-postgres
+    environment:
+      POSTGRES_DB: travelwithai
+      POSTGRES_USER: travel_admin
+      POSTGRES_PASSWORD: travel_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: travelwithai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  weaviate:
+    image: semitechnologies/weaviate:1.25.5
+    container_name: travelwithai-weaviate
+    ports:
+      - "8081:8080"
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate
+      DEFAULT_VECTORIZER_MODULE: none
+      ENABLE_MODULES: ""
+      CLUSTER_HOSTNAME: node1
+    volumes:
+      - weaviate-data:/var/lib/weaviate
+
+volumes:
+  postgres-data:
+  redis-data:
+  weaviate-data:
