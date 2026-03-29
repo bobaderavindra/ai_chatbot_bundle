@@ -36,6 +36,22 @@ export function askAi(payload) {
   return postJson("/api/ai/chat", payload);
 }
 
+export function getChatbots() {
+  return getJson("/api/ai/chatbots");
+}
+
+export function getChatSessions(userId) {
+  return getJson(`/api/ai/sessions?userId=${encodeURIComponent(userId)}`);
+}
+
+export function getChatSession(userId, sessionId) {
+  return getJson(`/api/ai/sessions/${encodeURIComponent(sessionId)}?userId=${encodeURIComponent(userId)}`);
+}
+
+export function createChatSession(payload) {
+  return postJson("/api/ai/sessions", payload);
+}
+
 export function predictPrice(payload) {
   return postJson("/api/pricing/predict", payload);
 }

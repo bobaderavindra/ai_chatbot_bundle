@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 function formatShortDate(value) {
   const date = new Date(value);
@@ -6,6 +6,19 @@ function formatShortDate(value) {
     return "Add dates";
   }
   return new Intl.DateTimeFormat("en-SG", { month: "short", day: "numeric" }).format(date);
+}
+
+function formatChatTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return new Intl.DateTimeFormat("en-SG", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
 }
 
 function addDays(dateText, days) {
@@ -39,16 +52,27 @@ function getGalleryTone(index, slideIndex) {
 }
 
 export function HotelSearchPage({
+  activeChatbot,
+  activeSession,
   bookingQuote,
+  chatInput,
   chatResponse,
+  chatSessions = [],
   dashboard,
   error,
   hotels = [],
-  itinerary,
+  isChatLoading,
   isLoading,
+  isSendingMessage,
+  itinerary,
   nextQuestions = [],
+  onBack,
+  onChatInputChange,
+  onChatSessionCreate,
+  onChatSessionSelect,
   onHotelSelect,
   onSearch,
+  onSendMessage,
   pricePrediction,
   query,
   searchSummary,
@@ -71,14 +95,24 @@ export function HotelSearchPage({
   const checkOut = useMemo(() => addDays(checkIn, query.tripDays), [checkIn, query.tripDays]);
 
   const visibleHotels = useMemo(() => hotels.filter((hotel) => {
-    const tags = hotel.tags ?? [];
-    const withinBudget = hotel.nightlyPrice <= maxBudget;
-    const matchesTag = selectedTag === "All" || tags.includes(selectedTag);
+    const hotelTags = [
+      hotel.beachAccess ? "Beach access" : null,
+      hotel.freeBreakfast ? "Breakfast included" : null,
+      hotel.nightlyPrice <= 130 ? "Budget" : null,
+      hotel.cancellationPolicy?.toLowerCase().includes("free") ? "Flexible stay" : null,
+      hotel.amenities?.includes("kids club") ? "Kids club" : null
+    ].filter(Boolean);
+
+    const withinBudget = Number(hotel.nightlyPrice) <= maxBudget;
+    const matchesTag = selectedTag === "All" || hotelTags.includes(selectedTag);
     return withinBudget && matchesTag;
   }), [hotels, maxBudget, selectedTag]);
 
   const tags = ["All", "Beach access", "Breakfast included", "Flexible stay", "Budget", "Kids club"];
   const totalNights = query.tripDays;
+  const latestAssistantMessage = [...(activeSession?.messages ?? [])].reverse()
+    .find((message) => message.senderRole === "ASSISTANT");
+  const chatSuggestions = chatResponse?.suggestedActions ?? [];
 
   function submitSearch(event) {
     event.preventDefault();
@@ -113,9 +147,24 @@ export function HotelSearchPage({
     });
   }
 
+  function submitChat(event) {
+    event.preventDefault();
+    onSendMessage();
+  }
+
   return (
     <div className="search-page">
-      <header className="top-shell">
+      <header className="section-topbar">
+        <button type="button" className="back-button" onClick={onBack}>Back to dashboard</button>
+        <div className="section-title-block">
+          <p className="hero-eyebrow">Travel Workspace</p>
+          <h1>{activeChatbot?.displayName ?? "TravelAiGuide"}</h1>
+          <p>Hotel discovery, itinerary planning, price guidance, and booking support in one travel page.</p>
+        </div>
+        <div className="profile-pill">Demo traveler</div>
+      </header>
+
+      <header className="top-shell travel-top-shell">
         <div className="brand-rail">
           <div className="brand-mark">T</div>
           <div>
@@ -175,7 +224,7 @@ export function HotelSearchPage({
           <button type="submit" className="search-submit">Search</button>
         </form>
 
-        <div className="profile-pill">Demo traveler</div>
+        <button type="button" className="secondary-button" onClick={onChatSessionCreate}>New trip chat</button>
       </header>
 
       <section className="filter-bar">
@@ -209,7 +258,7 @@ export function HotelSearchPage({
             <div>
               <p className="results-overline">Over {visibleHotels.length || hotels.length} stays</p>
               <h1>Stays in {destination}</h1>
-              <p>{formatShortDate(checkIn)} - {formatShortDate(checkOut)} · {guests} guests · {searchSummary}</p>
+              <p>{formatShortDate(checkIn)} - {formatShortDate(checkOut)} | {guests} guests | {searchSummary}</p>
             </div>
             <div className="signal-box">
               <span>Price signal</span>
@@ -223,12 +272,18 @@ export function HotelSearchPage({
 
           <div className="listing-stack">
             {visibleHotels.map((hotel, index) => {
-              const totalPrice = hotel.nightlyPrice * totalNights;
+              const totalPrice = Number(hotel.nightlyPrice) * totalNights;
               const highlighted = selectedHotelId === hotel.id || hoveredHotelId === hotel.id;
               const galleryIndex = galleryIndexByHotel[hotel.id] ?? 0;
               const mapPosition = getMapPosition(index);
               const isSaved = savedHotels.has(hotel.id);
-              const hotelTags = hotel.tags ?? [];
+              const hotelTags = [
+                hotel.beachAccess ? "Beach access" : null,
+                hotel.freeBreakfast ? "Breakfast included" : null,
+                Number(hotel.nightlyPrice) <= 130 ? "Budget" : null,
+                hotel.cancellationPolicy?.toLowerCase().includes("free") ? "Flexible stay" : null,
+                hotel.amenities?.includes("kids club") ? "Kids club" : null
+              ].filter(Boolean);
               const amenities = hotel.amenities ?? [];
 
               return (
@@ -241,7 +296,7 @@ export function HotelSearchPage({
                   <div className={`listing-image ${getGalleryTone(index, galleryIndex)}`}>
                     <div className="gallery-toolbar">
                       <button type="button" className={isSaved ? "save-badge saved" : "save-badge"} onClick={() => toggleSaved(hotel.id)}>
-                        {isSaved ? "♥ Saved" : "♡ Save"}
+                        {isSaved ? "Saved" : "Save"}
                       </button>
                       <div className="gallery-dots">
                         {[0, 1, 2].map((dot) => (
@@ -253,8 +308,8 @@ export function HotelSearchPage({
                     <div className="gallery-caption">
                       <div className="image-caption">{hotel.area}</div>
                       <div className="gallery-arrows">
-                        <button type="button" onClick={() => changeGallery(hotel.id, -1)} aria-label="Previous photo">‹</button>
-                        <button type="button" onClick={() => changeGallery(hotel.id, 1)} aria-label="Next photo">›</button>
+                        <button type="button" onClick={() => changeGallery(hotel.id, -1)} aria-label="Previous photo">&lt;</button>
+                        <button type="button" onClick={() => changeGallery(hotel.id, 1)} aria-label="Next photo">&gt;</button>
                       </div>
                     </div>
                   </div>
@@ -262,11 +317,11 @@ export function HotelSearchPage({
                   <div className="listing-copy">
                     <div className="listing-meta">
                       <div>
-                        <p className="muted-text">{hotel.provider} · {hotel.area}</p>
+                        <p className="muted-text">{hotel.provider} | {hotel.area}</p>
                         <h2>{hotel.name}</h2>
-                        <p>{amenities.slice(0, 3).join(" · ")}</p>
+                        <p>{amenities.slice(0, 3).join(" | ")}</p>
                       </div>
-                      <div className="rating-pill">★ {hotel.rating}</div>
+                      <div className="rating-pill">Rating {hotel.rating}</div>
                     </div>
 
                     <div className="listing-tags">
@@ -297,6 +352,73 @@ export function HotelSearchPage({
         </section>
 
         <aside className="map-column">
+          <section className="assistant-card">
+            <div className="assistant-header">
+              <div>
+                <p className="card-label">Assistant workspace</p>
+                <h3>{activeChatbot ? activeChatbot.displayName : "TravelAiGuide"}</h3>
+              </div>
+              <div className="assistant-meta">
+                <span>travel</span>
+                <strong>{chatSessions.length} sessions</strong>
+              </div>
+            </div>
+
+            <div className="session-chip-row">
+              {chatSessions.map((session) => (
+                <button
+                  key={session.sessionId}
+                  type="button"
+                  className={activeSession?.sessionId === session.sessionId ? "session-chip active" : "session-chip"}
+                  onClick={() => onChatSessionSelect(session.sessionId)}
+                >
+                  <strong>{session.chatbotName}</strong>
+                  <span>{session.sessionTitle}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="assistant-thread">
+              {isChatLoading ? <div className="thread-placeholder">Loading conversation...</div> : null}
+              {!isChatLoading && !(activeSession?.messages?.length) ? (
+                <div className="thread-placeholder">Start the conversation with a travel question.</div>
+              ) : null}
+              {activeSession?.messages?.map((message) => (
+                <article
+                  key={message.messageId}
+                  className={message.senderRole === "USER" ? "chat-bubble user" : "chat-bubble assistant"}
+                >
+                  <div className="chat-bubble-meta">
+                    <strong>{message.senderName || message.senderRole}</strong>
+                    <span>{formatChatTime(message.createdAt)}</span>
+                  </div>
+                  <p>{message.messageContent}</p>
+                </article>
+              ))}
+            </div>
+
+            <form className="assistant-composer" onSubmit={submitChat}>
+              <textarea
+                rows="3"
+                value={chatInput}
+                onChange={(event) => onChatInputChange(event.target.value)}
+                placeholder="Ask about destinations, policies, budgets, or itinerary tradeoffs."
+              />
+              <div className="assistant-actions">
+                <div className="quick-actions">
+                  {chatSuggestions.slice(0, 3).map((action) => (
+                    <button key={action} type="button" className="quick-action" onClick={() => onSendMessage(action)}>
+                      {action}
+                    </button>
+                  ))}
+                </div>
+                <button type="submit" className="search-submit" disabled={isSendingMessage}>
+                  {isSendingMessage ? "Sending..." : "Send"}
+                </button>
+              </div>
+            </form>
+          </section>
+
           <div className="map-card">
             <div className="map-surface">
               <div className="map-grid" />
@@ -322,8 +444,8 @@ export function HotelSearchPage({
           </div>
 
           <div className="info-card standout">
-            <p className="card-label">AI co-host</p>
-            <h3>{chatResponse ? chatResponse.reply : "Ask the assistant about refundable deals and itinerary tradeoffs."}</h3>
+            <p className="card-label">Latest assistant note</p>
+            <h3>{latestAssistantMessage ? latestAssistantMessage.messageContent : "Ask the assistant about refundable deals and itinerary tradeoffs."}</h3>
             {chatResponse ? (
               <ul>
                 {chatResponse.agentInsights.map((insight) => (

@@ -6,6 +6,8 @@ import java.util.List;
 public record AiChatRequest(
         @NotBlank String userId,
         @NotBlank String message,
+        String sessionId,
+        String chatbotCode,
         @NotBlank String stage,
         String destination,
         String selectedHotel,

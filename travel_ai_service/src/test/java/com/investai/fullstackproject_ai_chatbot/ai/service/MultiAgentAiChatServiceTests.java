@@ -8,18 +8,21 @@ import org.junit.jupiter.api.Test;
 
 class MultiAgentAiChatServiceTests {
 
+    private final InMemoryChatMemoryStore chatMemoryStore = new InMemoryChatMemoryStore();
     private final MultiAgentAiChatService service = new MultiAgentAiChatService(List.of(
             new PlannerAgent(),
             new HotelAgent(),
             new PriceAgent(),
             new LocalGuideAgent()
-    ));
+    ), new ChatWorkspaceService(chatMemoryStore), chatMemoryStore);
 
     @Test
     void orchestratesAllAgents() {
         var response = service.respond(new AiChatRequest(
                 "user-1",
                 "Plan my Bali trip",
+                null,
+                "travel_ai_guide",
                 "discovery",
                 "Bali",
                 "Seabreeze Resort",
@@ -29,5 +32,7 @@ class MultiAgentAiChatServiceTests {
 
         assertThat(response.agentInsights()).hasSize(4);
         assertThat(response.reply()).contains("discovery");
+        assertThat(response.sessionId()).isNotBlank();
+        assertThat(response.messages()).isNotEmpty();
     }
 }
